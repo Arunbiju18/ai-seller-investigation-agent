@@ -171,3 +171,24 @@ Mention Muse Code in the README and demo materials.
   Phase 0.
 
 Full contracts: [CONTRACTS.md](CONTRACTS.md).
+
+## 13. Contract amendment (v0.3)
+
+- URL-type gate: unsupported, invalid, and unsafe URLs are refused with
+  no score, report, or seller risk verdict. Social profiles stay refused
+  unless an inspection method is explicitly allowlisted.
+- Identity graph: brand, legal entity, trade name, domain, registration,
+  and contact nodes with evidence-backed relationship edges, stored as
+  relational records in SQLite (not a graph database, per section 10).
+  Distinct names are never contradictions by themselves.
+- Source-backed reporting: material findings carry a seller-claim versus
+  independent basis; fabricated, missing, or invalid references fail
+  verification; unavailable sources are never presented as verification.
+- Loop and dimensions: the turn loop is documented as
+  plan-act-observe-update within fixed budgets; identity, transaction,
+  and fulfilment risk dimensions are reporting labels that never move
+  the score. Scoring formula, bands, gates, retries, budgets, and
+  security controls are unchanged.
+
+Full text: [CONTRACTS.md](CONTRACTS.md) sections 1.9, 1.10, 4.8, 6.1,
+and 7.0.

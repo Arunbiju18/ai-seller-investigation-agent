@@ -1,6 +1,6 @@
 # AI Seller Investigation Agent — Phase 0 Contracts
 
-Status: PROPOSED, version 0.2. Specification only; nothing described here
+Status: PROPOSED, version 0.3. Specification only; nothing described here
 is implemented. A behavior counts as done only after it exists and its
 tests pass.
 
@@ -33,7 +33,12 @@ Purpose: one seller investigation from URL submission to final report.
 - submitted_url, required. The exact submitted string.
 - created_at, required.
 - status, required. One of RUNNING, COMPLETE, UNVERIFIED,
-  COVERAGE_GAP, ABORTED.
+  COVERAGE_GAP, ABORTED, REFUSED.
+- url_class, required. One of SUPPORTED_SITE, SUPPORTED_PRODUCT_PAGE,
+  CONDITIONAL_SOCIAL, UNSUPPORTED_MEDIA, INVALID, UNSAFE. Set by the
+  section 7.0 gate before any planning or fetching.
+- refusal_reason, required when status is REFUSED. One of
+  URL_TYPE_UNSUPPORTED, INVALID_URL, UNSAFE_DESTINATION.
 - config, required. Model IDs, expert_list_version, max_turns,
   budget and limit values in force for the run.
 - budget_used, required. Integer turns consumed.
@@ -63,6 +68,16 @@ Purpose: one traceable captured fact with its source.
 - truncated, required. True or false.
 - reliability, required. One of OFFICIAL, ESTABLISHED_INDEPENDENT,
   SELLER_CONTROLLED, UNVERIFIED_SINGLE.
+- authority, optional. One of AUTHORITATIVE, CORROBORATING, UNVERIFIED.
+  The role this entry plays for the claims it bears on.
+- relevance, optional. One of DIRECT, SUPPORTING, CONTEXT.
+- independence, optional. One of INDEPENDENT, DERIVED, SELLER_LINKED,
+  evaluated per the section 2 origin rule, never by URL count or domain
+  alone.
+- retrieval_status, required. One of OK, TRUNCATED, UNAVAILABLE. Entries
+  cited as support MUST be OK or TRUNCATED; UNAVAILABLE entries MUST
+  carry their reason in the report limitations and MUST NEVER support a
+  finding.
 - relates_to, required, possibly empty. Checklist IDs this entry bears on.
 - capture_method, required. Tool name that captured it.
 
@@ -80,6 +95,10 @@ Purpose: one seller or third-party assertion with its resolved status.
 - refuting_evidence, required, possibly empty. Evidence IDs.
 - reliability_note, optional. Required when refuting evidence exists but
   the claim stays UNRESOLVED for reliability reasons.
+- dimension, optional. One of IDENTITY, TRANSACTION, FULFILMENT, the
+  only reporting dimensions, assigned per section 4.8. Claims that do
+  not fit a dimension remain unbucketed. Unbucketed status MUST NOT
+  affect score, coverage, confidence, or verification gates.
 
 ### 1.4 agent checklist item
 
@@ -114,7 +133,14 @@ Purpose: the submitted investigation output.
 - unverified_reason, required when UNVERIFIED. One of VERIFY_EXHAUSTED,
   COVERAGE_GAP, BUDGET_EXHAUSTED, SECURITY_BLOCK, MODEL_FAILURE.
 - findings, required. Each finding carries claim IDs and evidence IDs;
-  every cited ID MUST resolve to a stored record.
+  every cited ID MUST resolve to a stored record. Each material finding
+  carries verification_basis (SELLER_CLAIM, INDEPENDENT, or MIXED).
+  The basis is checked against the actual finding and its evidence, not
+  just source-tier labels: tier consistency is necessary but not
+  sufficient. Each support citation MUST be well-formed, resolving,
+  retrieved OK or TRUNCATED, relevance DIRECT or SUPPORTING, and
+  genuinely supportive of the finding text. UNAVAILABLE entries MUST
+  NEVER support a finding.
 - unknowns, required, possibly empty.
 - not_performed, required, possibly empty.
 - na_items, required, possibly empty. Every NOT_APPLICABLE checklist ID
@@ -147,6 +173,52 @@ Purpose: persisted human-review request.
 - status, required. OPEN or RESOLVED.
 - created_at, required.
 
+### 1.9 identity node
+
+Purpose: one named identity-side entity, stored as a relational record in
+the existing SQLite store (not a graph database).
+
+- node_id, required. Kind-prefixed and sequential per run within kind:
+  ID-BRAND-NNNN, ID-LEGAL-NNNN, ID-TRADE-NNNN, ID-DOMAIN-NNNN,
+  ID-REG-NNNN, ID-CONTACT-NNNN.
+- kind, required. One of BRAND, LEGAL_ENTITY, TRADE_NAME, DOMAIN,
+  REGISTRATION, CONTACT.
+- label, required. The name or value as observed.
+- normalized, required. Canonical folded form used for comparison.
+- run_id, required.
+
+### 1.10 identity edge
+
+Purpose: one asserted relationship between two identity nodes.
+
+- edge_id, required. IE-0001 sequential per run.
+- from_node and to_node, required. Node IDs.
+- relation, required. One of TRADES_AS, OPERATED_BY, REGISTERED_AS,
+  OWNS_DOMAIN, USES_CONTACT.
+- status, required. SUPPORTED, CONTRADICTED, or UNRESOLVED.
+- evidence_ids, required, possibly empty. SUPPORTED or CONTRADICTED
+  requires at least one.
+- claim_ids, required, possibly empty. Every material edge links at
+  least one claim.
+
+Rules: different names are never contradictions by themselves; a bare
+name difference with no relationship evidence stays UNRESOLVED. An
+OPERATED_BY assertion (brand belongs to or is operated by a legal
+entity) requires OFFICIAL evidence or at least two independent
+ESTABLISHED_INDEPENDENT sources, else UNRESOLVED. Edge CONTRADICTED
+requires the same section 4.1 bar as claim contradiction.
+
+Identity graph test specifications:
+
+- T-GRAPH-01: brand label differing from legal entity name with
+  qualifying OPERATED_BY evidence asserts edge SUPPORTED, no
+  contradiction, D1 0.
+- T-GRAPH-02: brand/legal link asserted without qualifying evidence
+  asserts edge UNRESOLVED, claim UNRESOLVED, +0.
+- T-GRAPH-03: authoritative registry record disproving the exact claimed
+  identifier asserts edge CONTRADICTED and follows the existing D1
+  scoring path with unchanged arithmetic.
+
 ## 2. Evidence reliability and independence
 
 Tiers, highest first:
@@ -169,11 +241,33 @@ separate publishers or operators with separate data collection.
 
 Consequences: a registry plus a press article that only repeats that
 registry is ONE source. A registry plus a business directory compiled
-from the directory's own survey is TWO sources. Two pages on one domain,
-one corporate owner, one syndicated feed, or one wire story republished
-is ONE source. Seller-controlled material is never independent of the
+from the directory's own survey is TWO sources. Copied or syndicated
+versions of the same underlying report (one wire story republished, one
+syndicated feed) are ONE source. A shared domain or shared corporate
+owner alone decides nothing: distinct reporting with separate data
+collection is evaluated for actual independence through origin lineage
+and collection method, and separately collected work on one domain may
+count as TWO. Seller-controlled material is never independent of the
 seller. Corroboration counts and the confidence HIGH rule use
-independent sources only.
+independent sources only. Independence is established by underlying
+origin and evidence lineage only, never by URL count or domain alone:
+any number of URLs sharing one evaluated origin count as ONE source. Copied reports
+MUST NOT count as independent corroboration.
+
+Evidence test specifications:
+
+- T-EVID-01: two reports copied from one origin assert ONE independent
+  source at finding level; confidence HIGH MUST NOT rest on them.
+- T-EVID-02: material finding with no valid reference asserts
+  deterministic failure with feedback.
+- T-EVID-03: unavailable registry cited as support asserts deterministic
+  failure; cited only under limitations asserts pass.
+- T-EVID-04: distinct separately collected reports sharing only a
+  domain assert evaluation by origin and lineage, not automatic
+  dedup to one source.
+- T-EVID-05: support citation with relevance CONTEXT asserts
+  deterministic failure; retrieved-but-non-supportive citations assert
+  judge failure on substance.
 
 ## 3. Status values and mapping rules
 
@@ -327,6 +421,28 @@ context and MUST NOT move D1, D2, bands, floors, or caps.
 - T-SCORE-15: disproof-shaped evidence from a source that is not
   authoritative for the claimed jurisdiction asserts UNRESOLVED, D1 0.
 
+### 4.8 Risk dimensions (reporting only)
+
+Material contradicted claims may carry one reporting dimension. The only
+reporting dimensions are IDENTITY, TRANSACTION, and FULFILMENT. Claims
+that fit none remain unbucketed; unbucketed status MUST NOT affect
+score, coverage, confidence, or verification gates. Dimensions MUST NOT
+move D1, D2, bands, floors, caps, coverage, or confidence. The formula
+stays raw equals the smaller of 100 and D1 + D2 with the section 4.2
+bands.
+
+- IDENTITY: claims about seller identity, registration, contact
+  identity, and location (expert items EX-01 to EX-04).
+- TRANSACTION: claims about payment methods, checkout, and buyer
+  protections (expert item EX-08).
+- FULFILMENT: claims about returns, refunds, shipping, and offer
+  consistency (expert items EX-07 and EX-10).
+
+Assignment is deterministic: the dimension of the lowest-numbered
+linked listed expert item through the claim's refuting evidence
+relates_to links; claims with no listed linkage remain unbucketed.
+Per-dimension tallies are informational only.
+
 ## 5. Expert checklist EX-v1 and coverage gates
 
 Version EX-v1. IDs are stable. 12 items.
@@ -425,6 +541,16 @@ verification judge). The run config pins one model per role; mid-run
 changes are forbidden. Every trace turn records model_id, latency_ms,
 and input/output token counts when reported.
 
+### 6.1 Investigation loop phases
+
+Each turn runs plan, act, observe, update. Update is the existing
+per-turn step: checklist and ledger statuses are updated and the turn is
+persisted to SQLite before the next turn begins (section 9). Adaptive
+means each plan step conditions on accumulated observations
+(checklist, ledger, trace) within the fixed policies, budgets, and
+limits; no policy, budget, or limit changes at runtime. This names the
+existing behavior and adds none.
+
 Registry statuses: INTENDED, CONFIGURED, OPTIONAL_DISABLED.
 
 - muse-spark-1.3: INTENDED primary for INVESTIGATOR. [Decision]
@@ -483,6 +609,45 @@ Routing test specifications:
 Only listed tools may run. The registry MUST reject and log any other
 call with tool name, turn, and reason. One tool call per turn.
 
+### 7.0 URL-type gate
+
+The gate classifies the submitted URL and runs before any checklist
+planning. Order: validate URL syntax offline with zero network use;
+then determine destination safety by DNS resolution plus IP-range check
+before any HTTP connection or tool fetch; then assign the class.
+
+- SUPPORTED_SITE and SUPPORTED_PRODUCT_PAGE: seller websites and
+  product pages. Proceed to planning.
+- CONDITIONAL_SOCIAL: seller social profiles. Proceed only when the run
+  config names an explicitly allowlisted inspection method; otherwise
+  refuse. No method is allowlisted in the MVP.
+- UNSUPPORTED_MEDIA: media-only URLs such as video or audio pages.
+  Refuse.
+- INVALID: malformed or unparsable URLs. Refuse.
+- UNSAFE: destinations failing the safety check. Refuse with
+  UNSAFE_DESTINATION before any fetch; mid-run blocks keep using
+  SECURITY_BLOCK.
+
+The gate applies the full section 7.1 protections and MUST NOT bypass
+them: every destination is DNS-resolved with the address validated
+before connecting, every redirect destination is re-resolved and
+revalidated, and DNS-rebinding guards apply at fetch time. Gate
+pre-checks never substitute for per-fetch validation.
+
+Refusal sets run status REFUSED with the section 1.1 refusal_reason,
+records the classification in the run record, and produces no score, no
+report, and no seller risk verdict. A clean refusal creates no review
+entry. Unsafe refusals are logged without secrets.
+
+URL gate test specifications:
+
+- T-URL-01: unsupported YouTube/video URL asserts REFUSED with
+  URL_TYPE_UNSUPPORTED and asserts no report, score, or verdict exists.
+- T-URL-02: supported seller product page asserts the gate passes to
+  planning with class SUPPORTED_PRODUCT_PAGE.
+- T-URL-03: unsafe destination asserts REFUSED with
+  UNSAFE_DESTINATION and asserts no fetch occurred.
+
 ### 7.1 fetch_page
 
 - Input: absolute http or https URL. Only these schemes are allowed.
@@ -522,13 +687,19 @@ pass. The submit operation MUST always invoke this gate with no bypass.
   returns actionable feedback naming failed rule IDs, offending
   references, and repair hints. Attempt 3 failing ends verification.
 - Deterministic checks: schema validity, required fields, section
-  completeness, every cited ledger and claim ID resolving, excerpts
-  present where required, permitted wording, score recomputed equal,
-  coverage recomputed equal, confidence recomputed equal.
+  completeness, every cited ledger and claim ID well-formed and
+  resolving (fabricated, malformed, or non-resolving references fail),
+  excerpts present where required, permitted wording, score recomputed
+  equal, coverage recomputed equal, confidence recomputed equal,
+  present dimension labels recomputed equal, verification_basis consistent with
+  cited tiers, every material finding carrying at least one valid
+  reference, no UNAVAILABLE-status entry cited as support, and support
+  citations carrying relevance DIRECT or SUPPORTING.
 - Judge isolation: the judge receives ONLY the proposed report and the
   evidence ledger, with no tools, no checklist, and no web access. It
   checks that reasoning follows the evidence, including D1 substance
-  per section 4.1. Unparseable judge output fails the attempt with
+  per section 4.1 and whether each cited entry genuinely supports its
+  finding and basis. Unparseable judge output fails the attempt with
   feedback JUDGE_UNPARSEABLE.
 - Persistent model failure during verification marks the attempt failed
   with model-error feedback; investigation-side persistent failure ends
@@ -639,6 +810,13 @@ probe requires your explicit approval and has not been run.
 - D1 specificity bar with structure/substance split and failing tests.
 - Coverage gates with integer rules, 8/6 minima, scope block, and gate
   tests.
+- URL-type gate with REFUSED outcome and no verdict on refusal.
+- Identity graph nodes and edges with relationship evidence bars.
+- Source-backed finding basis and reference validity rules.
+- Loop phases and reporting risk dimensions documented with the
+  scoring formula and bands unchanged.
+- New tests T-URL-01 to 03, T-GRAPH-01/02/03, T-EVID-01 to 05
+  specified.
 
 ## 12. Open items and deferred decisions
 
@@ -657,6 +835,14 @@ probe requires your explicit approval and has not been run.
 
 ## 13. Changelog
 
+- 0.3 PROPOSED: add URL-type gate with REFUSED outcome; identity graph
+  records; source-backed finding basis and reference rules; document
+  investigation loop phases and reporting risk dimensions; add T-URL,
+  T-GRAPH, T-EVID tests. No scoring formula, band, gate, retry, budget,
+  or security change. Revised pre-approval: OTHER dimension removed with
+  unbucketed claims allowed; independence by origin and lineage, never
+  URL count or domain alone; basis checked against actual support;
+  gate bound to full SSRF controls.
 - 0.2 PROPOSED: clarify T-SCORE-07 into raw, floor, and final asserts;
   add T-GATE-07 for budget-exhaustion coverage-gap end state. No formula,
   weight, threshold, or routing changes.
