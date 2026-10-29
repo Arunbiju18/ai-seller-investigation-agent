@@ -136,3 +136,38 @@ unnecessary multi-agent debate before the core workflow works.
 Document which features were built during the hackathon and identify any
 reused workshop code. Check the applicable license before reusing code.
 Mention Muse Code in the README and demo materials.
+
+## 12. Phase 0 decisions
+
+- Runtime: Python 3.11+ with stdlib SQLite for the planned implementation.
+- Models: Muse Spark 1.3 is the intended primary investigator model, pending
+  endpoint verification. The reviewer model is independently configurable.
+  Muse Spark Open, Muse Wonder, and Muse Glimmer are optional and disabled
+  until capability, access, licensing, and cost checks pass. No paid model
+  routing without explicit approval. One same-model retry on transient
+  errors; no silent fallback. Both model IDs are recorded per run, and
+  same-model review is disclosed as a separate step, not independent
+  corroboration.
+- Verification: 3 total attempts; after the third failure return an explicitly
+  unverified result and persist a review-needed entry.
+- Turn budget: default 25 investigation turns, hard maximum 30.
+- MVP tool limits: 15-second fetch timeout, 1 MB response limit, 2,000-character
+  excerpt limit, one tool call per turn.
+- Evidence IDs: EV-0001 sequential per run. SQLite lives under data/, excluded
+  from Git before any run writes to it.
+- Checklist: versioned expert list EX-v1; the plan must cover at least 10 of 12
+  items with at least 6 material checks; checked coverage requires 80 percent by
+  integer arithmetic with minimum 8 applicable items and at least 6 material;
+  below any gate normal submission blocks with missing IDs listed; shortfalls end
+  explicitly unverified with a review entry; no silent override.
+- Scoring: deterministic risk indicator, never set by the LLM; HIGH requires a
+  bar-meeting critical contradiction on reliable independent evidence, from an
+  authoritative source for the jurisdiction where registry-based, that actually
+  disproves the specific claim; failed or missing lookups never disprove;
+  weak signals score zero; missing evidence is never proof of safety or
+  wrongdoing.
+- Independence: sources sharing one underlying origin count as one source.
+- Cost: no paid API calls, no package installation, no application code in
+  Phase 0.
+
+Full contracts: [CONTRACTS.md](CONTRACTS.md).

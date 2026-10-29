@@ -55,3 +55,4 @@ demo materials.
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Workshop compliance checklist](docs/WORKSHOP_CHECKLIST.md)
+- [Phase 0 contracts](docs/CONTRACTS.md)
