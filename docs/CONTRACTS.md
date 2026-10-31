@@ -785,6 +785,9 @@ Generic OpenAI-compatible client:
   mode): CONFIRMED via E2 and E3 as the pattern, not as our endpoint.
 - Every capability against the actual configured endpoint: NOT_TESTED.
 
+This row is a protocol reference only; it is not a candidate provider
+and is never a default. Meta's model/API is the primary AI integration.
+
 No-cost verification method per cell, in order: read the official
 provider or platform doc; inspect the hackathon-provided endpoint base
 URL and model list from configuration; build and schema-validate request

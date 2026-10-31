@@ -33,9 +33,11 @@ created. Features are not considered implemented until tested.
 
 ## Model integration
 
-The project will use a configurable OpenAI-compatible client where supported.
-Actual provider compatibility, model availability, and tool-calling support
-must be verified before implementation.
+The primary AI integration is Meta's model/API, with Muse Spark 1.3 as
+the intended primary investigator model. The client speaks the
+OpenAI-compatible API shape where the endpoint supports it. Actual
+provider compatibility, model availability, and tool-calling support
+must be verified before implementation; see docs/CONTRACTS.md §6/§10.
 
 ## Development and evaluation
 

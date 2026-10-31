@@ -89,7 +89,7 @@ the report must be escalated or clearly marked unverified.
 
 ## 7. Agent execution and observability
 
-Use a configurable OpenAI-compatible model client. Keep task-specific
+Use Meta's model/API as the primary AI integration through a configurable client speaking the OpenAI-compatible API shape where the endpoint supports it (see §12–§13 and CONTRACTS §6/§10). Keep task-specific
 information in the initial user message and general behavior rules in the
 system prompt.
 
